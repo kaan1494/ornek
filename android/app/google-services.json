@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "696348782277",
+    "project_id": "hastane-acil-app",
+    "storage_bucket": "hastane-acil-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:696348782277:android:61fb163d3635936a3bcaac",
+        "android_client_info": {
+          "package_name": "com.example.hastane_acil_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB4L7YtiE8HJM8TPF7Ja1SgQe1teKygvA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
