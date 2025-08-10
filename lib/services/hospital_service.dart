@@ -849,6 +849,77 @@ class HospitalService {
     }
   }
 
+  // Static hastane verilerini Firestore'a yükle
+  static Future<void> importStaticHospitalsToFirestore() async {
+    try {
+      if (kDebugMode) {
+        print('🏥 Static hastane verileri Firestore\'a yükleniyor...');
+      }
+
+      // Örnek il-ilçeler için static verileri al
+      final provinces = ['İstanbul', 'Ankara', 'İzmir', 'Adana'];
+      final districts = {
+        'İstanbul': ['Şişli', 'Kadıköy', 'Beşiktaş', 'Fatih', 'Üsküdar'],
+        'Ankara': ['Çankaya', 'Keçiören', 'Mamak', 'Altındağ', 'Yenimahalle'],
+        'İzmir': ['Konak', 'Karşıyaka', 'Bornova', 'Buca', 'Bayraklı'],
+        'Adana': ['Seyhan', 'Yüreğir', 'Çukurova'],
+      };
+
+      int totalAdded = 0;
+
+      for (String province in provinces) {
+        if (districts.containsKey(province)) {
+          for (String district in districts[province]!) {
+            final hospitalsForLocation = getHospitalsByLocation(
+              province,
+              district,
+            );
+
+            for (var hospital in hospitalsForLocation) {
+              // Firestore'da aynı hastane var mı kontrol et
+              final existingQuery = await _firestore
+                  .collection('hospitals')
+                  .where('name', isEqualTo: hospital['name'])
+                  .where('city', isEqualTo: province)
+                  .where('district', isEqualTo: district)
+                  .get();
+
+              if (existingQuery.docs.isEmpty) {
+                // Yeni hastane ekle
+                await _firestore.collection('hospitals').add({
+                  'name': hospital['name'],
+                  'city': province, // Admin panel 'city' field'ı kullanıyor
+                  'province': province, // Hem province hem city ekle
+                  'district': district,
+                  'address': hospital['address'],
+                  'phone': hospital['phone'],
+                  'emergencyAvailable': hospital['emergencyAvailable'],
+                  'type': hospital['type'],
+                  'waitingTime': hospital['waitingTime'],
+                  'emergencyCapacity': hospital['capacity'],
+                  'currentPatients': 0,
+                  'isActive': true,
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'importedFromStatic':
+                      true, // Bu verilerin static'den geldiğini işaretle
+                });
+                totalAdded++;
+              }
+            }
+          }
+        }
+      }
+
+      if (kDebugMode) {
+        print('✅ Toplam $totalAdded hastane Firestore\'a eklendi');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Static hastane verileri yükleme hatası: $e');
+      }
+    }
+  }
+
   // Hastane güncelleme
   static Future<bool> updateHospital(
     String hospitalId,

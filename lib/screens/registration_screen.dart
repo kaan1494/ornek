@@ -49,19 +49,29 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Logo ve başlık
-              Icon(Icons.person_add, size: 80, color: Colors.red.shade600),
-              const SizedBox(height: 16),
+              // Logo ve başlık - klavye açıldığında küçülsün
+              Icon(
+                Icons.person_add,
+                size: MediaQuery.of(context).viewInsets.bottom > 0 ? 60 : 80,
+                color: Colors.red.shade600,
+              ),
+              SizedBox(
+                height: MediaQuery.of(context).viewInsets.bottom > 0 ? 12 : 16,
+              ),
               Text(
                 'Yeni Hesap Oluştur',
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: MediaQuery.of(context).viewInsets.bottom > 0
+                      ? 20
+                      : 24,
                   fontWeight: FontWeight.bold,
                   color: Colors.red.shade600,
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              SizedBox(
+                height: MediaQuery.of(context).viewInsets.bottom > 0 ? 20 : 32,
+              ),
 
               // Kayıt formu
               Form(

@@ -314,6 +314,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     ),
                   ),
                   ElevatedButton.icon(
+                    onPressed: _importEmergencyHospitals,
+                    icon: const Icon(Icons.download),
+                    label: const Text('Acil Hastaneler Yükle'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade600,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
                     onPressed: _addNewHospital,
                     icon: const Icon(Icons.add),
                     label: const Text('Yeni Hastane'),
@@ -1477,6 +1487,67 @@ class _AdminDashboardState extends State<AdminDashboard> {
           SnackBar(
             content: Text('Doktor ekleme hatası: $e'),
             backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Acil başvuru hastanelerini Firestore'a yükle
+  Future<void> _importEmergencyHospitals() async {
+    try {
+      final messengerContext = ScaffoldMessenger.of(context);
+
+      // Yükleme durumunu göster
+      messengerContext.showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              CircularProgressIndicator(color: Colors.white),
+              SizedBox(width: 16),
+              Text('Acil başvuru hastaneleri yükleniyor...'),
+            ],
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 10),
+        ),
+      );
+
+      // HospitalService'ten static verileri yükle
+      await HospitalService.importStaticHospitalsToFirestore();
+
+      if (mounted) {
+        final messengerContext = ScaffoldMessenger.of(context);
+        messengerContext.hideCurrentSnackBar();
+        messengerContext.showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 16),
+                Text('Acil başvuru hastaneleri başarıyla yüklendi!'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        final messengerContext = ScaffoldMessenger.of(context);
+        messengerContext.hideCurrentSnackBar();
+        messengerContext.showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 16),
+                Text('Hata: $e'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
           ),
         );
       }
