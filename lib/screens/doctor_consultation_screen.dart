@@ -42,39 +42,96 @@ class _DoctorConsultationScreenState extends State<DoctorConsultationScreen> {
     });
 
     try {
-      // Doktor arama işlemi
-      final doctor = await ConsultationService.findAvailableDoctor(
-        hospitalId: widget.selectedHospital?['id'],
-        priority: widget.triageResult['priority'],
+      if (kDebugMode) {
+        debugPrint('🔍===========================================');
+        debugPrint('🔍 NÖBET DOKTORu ARAMA BAŞLATIYOR...');
+        debugPrint('🔍===========================================');
+        debugPrint('🏥 Hastane ID: ${widget.selectedHospital?['id']}');
+        debugPrint('🏥 Hastane Adı: ${widget.selectedHospital?['name']}');
+        debugPrint('📊 Triaj Önceliği: ${widget.triageResult['priority']}');
+        debugPrint('👤 Patient ID: ${widget.patientId}');
+        debugPrint('📋 Application ID: ${widget.applicationId}');
+        debugPrint('🔍===========================================');
+      }
+
+      // Admin panelinden atanmış nöbetçi doktor ara
+      final doctor = await ConsultationService.findAssignedDoctor(
+        hospitalId: widget.selectedHospital?['id'] ?? '',
+        patientId: widget.patientId,
+        applicationId: widget.applicationId,
       );
 
       if (doctor != null) {
+        if (kDebugMode) {
+          debugPrint('✅===========================================');
+          debugPrint('✅ NÖBETÇİ DOKTOR BULUNDU!');
+          debugPrint('✅===========================================');
+          debugPrint('👨‍⚕️ Doktor: Dr. ${doctor['doctorName']}');
+          debugPrint('🆔 Doktor ID: ${doctor['doctorId']}');
+          debugPrint('🏥 Hastane: ${doctor['hospitalName']}');
+          debugPrint('🆔 Hastane ID: ${doctor['hospitalId']}');
+          debugPrint('🕐 Nöbet Türü: ${doctor['shiftType']}');
+          debugPrint('📅 Nöbet Başlangıç: ${doctor['startDate']}');
+          debugPrint('⏰ Nöbet Bitiş: ${doctor['endDate']}');
+          debugPrint('🚨 Acil için Müsait: ${doctor['availableForEmergency']}');
+          debugPrint('📊 Hasta Kapasitesi: ${doctor['currentPatientCount']}/${doctor['maxPatientCapacity']}');
+          debugPrint('✅===========================================');
+        }
+
         setState(() {
-          _assignedDoctor = doctor;
+          _assignedDoctor = {
+            'id': doctor['doctorId'],
+            'name': doctor['doctorName'],
+            'specialty': 'Acil Tıp', // Default specialty
+            'hospital': doctor['hospitalName'],
+            'hospitalId': doctor['hospitalId'],
+            'shiftType': doctor['shiftType'],
+            'isOnline': true,
+            'avatarUrl': null,
+            'shiftId': doctor['id'], // Nöbet kaydının ID'si
+            'startDate': doctor['startDate'],
+            'endDate': doctor['endDate'],
+            'patientCapacity': doctor['maxPatientCapacity'],
+            'currentPatients': doctor['currentPatientCount'],
+          };
           _consultationStatus = 'doctor_found';
         });
 
-        // Konsültasyon kaydı oluştur
-        await ConsultationService.createConsultation(
-          applicationId: widget.applicationId,
-          patientId: widget.patientId,
-          doctorId: doctor['id'],
-          triageScore: widget.triageResult['priority'],
-        );
+        // Hasta sayısını artır
+        await ConsultationService.incrementPatientCount(doctor['id']);
+        
+        if (kDebugMode) {
+          debugPrint('📊 Doktor hasta sayısı güncellendi');
+        }
+
       } else {
+        if (kDebugMode) {
+          debugPrint('❌===========================================');
+          debugPrint('❌ NÖBETÇİ DOKTOR BULUNAMADI!');
+          debugPrint('❌===========================================');
+          debugPrint('🏥 Aranan Hastane: ${widget.selectedHospital?['name']}');
+          debugPrint('🆔 Hastane ID: ${widget.selectedHospital?['id']}');
+          debugPrint('⚠️ Bu hastaneye admin panelinden doktor atanmamış olabilir');
+          debugPrint('❌===========================================');
+        }
+        
         setState(() {
           _consultationStatus = 'no_doctor_available';
         });
       }
     } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌===========================================');
+        debugPrint('❌ DOKTOR ARAMA HATASI!');
+        debugPrint('❌===========================================');
+        debugPrint('💥 Hata: $e');
+        debugPrint('🏥 Hastane: ${widget.selectedHospital?['name']}');
+        debugPrint('❌===========================================');
+      }
+      
       setState(() {
         _consultationStatus = 'error';
       });
-      if (kDebugMode) {
-        debugPrint('❌ Doktor arama hatası: $e');
-      }
-    } finally {
-      // _isSearchingDoctor kaldırıldı
     }
   }
 
@@ -171,20 +228,29 @@ class _DoctorConsultationScreenState extends State<DoctorConsultationScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              // Triaj sonucu özeti
-              _buildTriageResultSummary(),
-              const SizedBox(height: 24),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height - 
+                         MediaQuery.of(context).padding.top - 
+                         MediaQuery.of(context).padding.bottom - 
+                         AppBar().preferredSize.height - 32,
+            ),
+            child: Column(
+              children: [
+                // Triaj sonucu özeti
+                _buildTriageResultSummary(),
+                const SizedBox(height: 20),
 
-              // Konsültasyon durumu
-              Expanded(child: _buildConsultationContent()),
+                // Konsültasyon durumu - flex yerine normal widget
+                _buildConsultationContent(),
+                const SizedBox(height: 20),
 
-              // Alt butonlar
-              _buildBottomButtons(),
-            ],
+                // Alt butonlar
+                _buildBottomButtons(),
+              ],
+            ),
           ),
         ),
       ),
@@ -237,6 +303,8 @@ class _DoctorConsultationScreenState extends State<DoctorConsultationScreen> {
                           fontWeight: FontWeight.bold,
                           color: triageResult['color'],
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                       Text(
                         'Hasta: ${widget.patientName}',
@@ -244,6 +312,8 @@ class _DoctorConsultationScreenState extends State<DoctorConsultationScreen> {
                           fontSize: 14,
                           color: Colors.grey.shade600,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ],
                   ),
@@ -324,64 +394,168 @@ class _DoctorConsultationScreenState extends State<DoctorConsultationScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Doktor avatarı
+          // Başarı ikonu
           Container(
-            width: 120,
-            height: 120,
+            width: 100,
+            height: 100,
             decoration: BoxDecoration(
-              color: Colors.blue.shade100,
-              borderRadius: BorderRadius.circular(60),
-              border: Border.all(color: Colors.blue.shade300, width: 3),
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(50),
+              border: Border.all(color: Colors.green.shade300, width: 3),
             ),
-            child: Icon(Icons.person, size: 60, color: Colors.blue.shade600),
+            child: Icon(
+              Icons.check_circle,
+              size: 50,
+              color: Colors.green.shade600,
+            ),
           ),
-          const SizedBox(height: 24),
-          const Text(
-            'Doktor Bulundu!',
+          const SizedBox(height: 20),
+
+          Text(
+            'Nöbetçi Doktor Bulundu!',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.green,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Doktor bilgileri
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Text(
-                    _assignedDoctor?['name'] ?? 'Doktor',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _assignedDoctor?['specialty'] ?? 'Genel Pratisyen',
-                    style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _assignedDoctor?['hospital'] ??
-                        widget.selectedHospital?['name'] ??
-                        'Hastane',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-                  ),
-                ],
-              ),
+              color: Colors.green.shade700,
             ),
           ),
           const SizedBox(height: 24),
 
-          // Görüşme başlat butonu
+          // Doktor detay kartı
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.shade200,
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Doktor avatarı
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade100,
+                    borderRadius: BorderRadius.circular(40),
+                    border: Border.all(color: Colors.blue.shade300, width: 2),
+                  ),
+                  child: Icon(
+                    Icons.medical_services,
+                    size: 40,
+                    color: Colors.blue.shade600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Doktor adı
+                Text(
+                  'Dr. ${_assignedDoctor?['name'] ?? 'Doktor'}',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Uzmanlık alanı
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Text(
+                    _assignedDoctor?['specialty'] ?? 'Acil Tıp Uzmanı',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Hastane bilgisi
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.local_hospital, color: Colors.red.shade400, size: 20),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _assignedDoctor?['hospital'] ?? widget.selectedHospital?['name'] ?? 'Hastane',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Nöbet bilgisi
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.schedule, color: Colors.green.shade400, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_assignedDoctor?['shiftType'] == 'daily' ? '24 Saatlik' : '12 Saatlik'} Nöbet',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Online durum
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Şu anda müsait',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.green.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Video görüşme başlat butonu
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -400,18 +574,19 @@ class _DoctorConsultationScreenState extends State<DoctorConsultationScreen> {
               label: Text(
                 _isCallStarted
                     ? 'Görüşme Başlatılıyor...'
-                    : 'Video Görüşme Başlat',
+                    : '📹 Doktor ile Görüntülü Görüş',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade600,
+                backgroundColor: Colors.blue.shade600,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
+                elevation: 3,
               ),
             ),
           ),
@@ -425,45 +600,111 @@ class _DoctorConsultationScreenState extends State<DoctorConsultationScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.person_off, size: 80, color: Colors.orange.shade400),
-          const SizedBox(height: 24),
-          const Text(
+          // Uyarı ikonu
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(50),
+              border: Border.all(color: Colors.orange.shade300, width: 3),
+            ),
+            child: Icon(
+              Icons.person_off,
+              size: 50,
+              color: Colors.orange.shade600,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          Text(
             'Şu Anda Uygun Doktor Yok',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.orange.shade700,
+            ),
           ),
           const SizedBox(height: 16),
-          Text(
-            'Maalesef şu anda online konsültasyon verebilecek doktor bulunmuyor.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-              height: 1.4,
+
+          // Açıklama kartı
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  'Maalesef ${widget.selectedHospital?['name'] ?? 'seçilen hastane'}de şu anda online konsültasyon verebilecek nöbetçi doktor bulunmuyor.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.orange.shade800,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Bu durumun nedenleri:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '• Hastaneye henüz doktor atanmamış\n'
+                  '• Nöbetçi doktorların kapasitesi dolu\n'
+                  '• Vardiya saatleri dışında',
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.orange.shade700,
+                    height: 1.3,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
+
+          // Aksiyon butonları
           Row(
             children: [
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: _startDoctorSearch,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Tekrar Dene'),
+                  icon: const Icon(Icons.refresh, size: 20),
+                  label: const Text(
+                    'Tekrar Dene',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue.shade600,
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    // Hastaneye yönlendir
                     Navigator.pop(context);
                   },
-                  icon: const Icon(Icons.local_hospital),
-                  label: const Text('Hastaneye Git'),
+                  icon: const Icon(Icons.local_hospital, size: 20),
+                  label: const Text(
+                    'Acil Servise Git',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red.shade600,
                     foregroundColor: Colors.white,

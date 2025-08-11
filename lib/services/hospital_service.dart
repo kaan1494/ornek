@@ -1109,6 +1109,219 @@ class HospitalService {
     }
   }
 
+  /// Firebase'deki mevcut hastaneleri kontrol et ve statik data ile birleştir
+  static Future<void> syncExistingFirebaseHospitals() async {
+    try {
+      if (kDebugMode) {
+        debugPrint('🔄 Firebase\'deki mevcut hastaneler kontrol ediliyor...');
+      }
+
+      // Firebase'deki tüm aktif hastaneleri getir
+      final existingSnapshot = await _firestore
+          .collection('hospitals')
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      if (kDebugMode) {
+        debugPrint('📊 Firebase\'de ${existingSnapshot.docs.length} aktif hastane bulundu');
+      }
+
+      // Mevcut hastaneleri listele
+      for (final doc in existingSnapshot.docs) {
+        final data = doc.data();
+        if (kDebugMode) {
+          debugPrint('   - ${data['name']} (${data['province']}/${data['district']}) - ID: ${doc.id}');
+        }
+      }
+
+      // Eğer hiç hastane yoksa örnek hastaneleri ekle
+      if (existingSnapshot.docs.isEmpty) {
+        await initializeHospitals();
+      }
+
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Firebase hastane senkronizasyon hatası: $e');
+      }
+    }
+  }
+
+  /// Tüm aktif hastaneleri getir (Admin paneli için)
+  static Future<List<Map<String, dynamic>>> getAllActiveHospitals() async {
+    try {
+      if (kDebugMode) {
+        debugPrint('🏥 Tüm aktif hastaneler getiriliyor...');
+      }
+
+      // Mevcut hastaneleri kontrol et ve gerekirse başlat
+      await syncExistingFirebaseHospitals();
+
+      // Firebase'den tüm aktif hastaneleri getir
+      final snapshot = await _firestore
+          .collection('hospitals')
+          .where('isActive', isEqualTo: true)
+          .orderBy('province')
+          .orderBy('district')
+          .orderBy('name')
+          .get();
+
+      final hospitals = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['name'],
+          'province': data['province'],
+          'district': data['district'],
+          'address': data['address'] ?? '',
+          'phone': data['phone'] ?? '',
+          'type': data['type'] ?? 'Devlet',
+          'emergencyAvailable': data['emergencyAvailable'] ?? true,
+          'waitingTime': data['waitingTime'] ?? 30,
+          'capacity': data['capacity'] ?? 75,
+          'currentPatients': data['currentPatients'] ?? 0,
+          'totalBeds': data['totalBeds'] ?? 200,
+          'emergencyCapacity': data['emergencyCapacity'] ?? 50,
+          'coordinates': data['coordinates'] ?? {},
+        };
+      }).toList();
+
+      if (kDebugMode) {
+        debugPrint('✅ ${hospitals.length} aktif hastane bulundu');
+        for (final hospital in hospitals) {
+          debugPrint('   - ${hospital['name']} (${hospital['province']}/${hospital['district']}) - ID: ${hospital['id']}');
+        }
+      }
+
+      // Eğer hala hiç hastane yoksa zorla örnek hastaneler ekle
+      if (hospitals.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('⚠️ Hala hiç hastane yok, zorla örnek hastaneler ekleniyor...');
+        }
+        await _addSampleHospitals();
+        
+        // Tekrar sorguyu çalıştır
+        final retrySnapshot = await _firestore
+            .collection('hospitals')
+            .where('isActive', isEqualTo: true)
+            .get();
+            
+        return retrySnapshot.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'name': data['name'],
+            'province': data['province'],
+            'district': data['district'],
+            'address': data['address'] ?? '',
+            'phone': data['phone'] ?? '',
+            'type': data['type'] ?? 'Devlet',
+            'emergencyAvailable': data['emergencyAvailable'] ?? true,
+            'waitingTime': data['waitingTime'] ?? 30,
+            'capacity': data['capacity'] ?? 75,
+            'currentPatients': data['currentPatients'] ?? 0,
+            'totalBeds': data['totalBeds'] ?? 200,
+            'emergencyCapacity': data['emergencyCapacity'] ?? 50,
+            'coordinates': data['coordinates'] ?? {},
+          };
+        }).toList();
+      }
+
+      return hospitals;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Tüm hastaneleri getirme hatası: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Zorla örnek hastaneler ekle
+  static Future<void> _addSampleHospitals() async {
+    try {
+      final sampleHospitals = [
+        {
+          'name': 'Ankara Şehir Hastanesi',
+          'province': 'Ankara',
+          'district': 'Çankaya',
+          'address': 'Üniversiteler Mah. 1604. Cad. No:9 Çankaya/Ankara',
+          'phone': '0312 552 60 00',
+          'type': 'Devlet',
+          'totalBeds': 2500,
+          'emergencyCapacity': 100,
+          'emergencyAvailable': true,
+          'waitingTime': 25,
+          'capacity': 85,
+          'coordinates': {'lat': 39.9208, 'lng': 32.8541},
+          'isActive': true,
+          'currentPatients': 45,
+        },
+        {
+          'name': 'Hacettepe Üniversitesi Hastanesi',
+          'province': 'Ankara', 
+          'district': 'Sıhhiye',
+          'address': 'Sıhhiye Mah. Hacettepe Üniversitesi Ankara',
+          'phone': '0312 305 10 00',
+          'type': 'Üniversite',
+          'totalBeds': 1000,
+          'emergencyCapacity': 80,
+          'emergencyAvailable': true,
+          'waitingTime': 30,
+          'capacity': 70,
+          'coordinates': {'lat': 39.9334, 'lng': 32.8597},
+          'isActive': true,
+          'currentPatients': 32,
+        },
+        {
+          'name': 'Konak Devlet Hastanesi',
+          'province': 'İzmir',
+          'district': 'Konak',
+          'address': 'Konak Meydanı İzmir',
+          'phone': '0232 000 00 00',
+          'type': 'Devlet',
+          'totalBeds': 800,
+          'emergencyCapacity': 60,
+          'emergencyAvailable': true,
+          'waitingTime': 35,
+          'capacity': 80,
+          'coordinates': {'lat': 38.4237, 'lng': 27.1428},
+          'isActive': true,
+          'currentPatients': 28,
+        },
+        {
+          'name': 'Bayrampaşa Devlet Hastanesi',
+          'province': 'İstanbul',
+          'district': 'Bayrampaşa',
+          'address': 'Bayrampaşa İstanbul',
+          'phone': '0212 000 00 00',
+          'type': 'Devlet',
+          'totalBeds': 600,
+          'emergencyCapacity': 70,
+          'emergencyAvailable': true,
+          'waitingTime': 40,
+          'capacity': 75,
+          'coordinates': {'lat': 41.0370, 'lng': 28.9017},
+          'isActive': true,
+          'currentPatients': 38,
+        },
+      ];
+
+      for (final hospital in sampleHospitals) {
+        await _firestore.collection('hospitals').add({
+          ...hospital,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (kDebugMode) {
+        debugPrint('✅ ${sampleHospitals.length} örnek hastane eklendi');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Örnek hastane ekleme hatası: $e');
+      }
+    }
+  }
+
   // Hastane hasta sayısını güncelle
   static Future<bool> updatePatientCount(
     String hospitalId,

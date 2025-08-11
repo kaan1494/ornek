@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'emergency_application_service.dart';
 
 class TriageService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -186,44 +187,49 @@ class TriageService {
         }
       });
 
-      // Başvuru verisini hazırla
-      final applicationData = {
-        'patientId': patientId,
-        'patientName': patientName,
-        'applicationDate': FieldValue.serverTimestamp(),
-        'triageScore': triageScore,
-        'triageLevel': triageResult['level'],
-        'priority': priority,
-        'status': 'pending',
-        'answers': formattedAnswers,
-        'totalQuestions': questions.length,
-        'completedAt': FieldValue.serverTimestamp(),
-        'needsHospital': triageResult['action'] == 'hospital',
-        'estimatedWaitTime': triageResult['waitTime'],
-        'doctorId': null,
-        // Hastane bilgileri
-        'hospitalId': selectedHospital?['id'],
-        'hospitalName': selectedHospital?['name'],
-        'hospitalAddress': selectedHospital?['address'],
-        'hospitalPhone': selectedHospital?['phone'],
-        'hospitalType': selectedHospital?['type'],
-        'province': selectedProvince,
-        'district': selectedDistrict,
-        'doctorName': null,
-        'consultationStarted': false,
-        'consultationCompleted': false,
-        'notes': '',
-        'prescription': '',
-        'recommendation': triageResult['message'],
-      };
+      // Hasta bilgilerini Firestore'dan al
+      String patientPhone = '';
+      String patientEmail = '';
+      
+      try {
+        final userDoc = await _firestore
+            .collection('users')
+            .doc(patientId)
+            .get();
+            
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          patientPhone = userData['phone'] ?? '';
+          patientEmail = userData['email'] ?? '';
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('⚠️ Hasta bilgileri alınamadı, varsayılan değerler kullanılıyor: $e');
+        }
+      }
 
-      // Firestore'a kaydet
-      final docRef = await _firestore
-          .collection('emergency_applications')
-          .add(applicationData);
+      // Hastane bilgilerini düzenle
+      final hospitalData = selectedHospital ?? {};
+      if (selectedProvince != null) hospitalData['province'] = selectedProvince;
+      if (selectedDistrict != null) hospitalData['district'] = selectedDistrict;
+
+      // Yeni servisi kullanarak başvuru oluştur
+      final applicationId = await EmergencyApplicationService.createApplication(
+        patientId: patientId,
+        patientName: patientName,
+        patientPhone: patientPhone,
+        patientEmail: patientEmail,
+        triageScore: triageScore,
+        triageLevel: triageResult['level'],
+        priority: priority,
+        selectedHospital: hospitalData,
+        answers: formattedAnswers,
+        recommendation: triageResult['message'],
+        notes: 'Triaj uygulaması ile oluşturuldu',
+      );
 
       if (kDebugMode) {
-        debugPrint('🏥 Acil başvuru oluşturuldu: ${docRef.id}');
+        debugPrint('🏥 Acil başvuru oluşturuldu: $applicationId');
         debugPrint('🏥 Triaj seviyesi: ${triageResult['level']}');
         debugPrint('🏥 Toplam puan: $triageScore');
       }
@@ -231,7 +237,7 @@ class TriageService {
       // Acil durum ise hastane bildirimini de oluştur
       if (priority == 'emergency') {
         await _createHospitalNotification(
-          applicationId: docRef.id,
+          applicationId: applicationId!,
           patientId: patientId,
           patientName: patientName,
           triageScore: triageScore,
@@ -239,7 +245,7 @@ class TriageService {
         );
       }
 
-      return docRef.id;
+      return applicationId;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('❌ Acil başvuru oluşturma hatası: $e');

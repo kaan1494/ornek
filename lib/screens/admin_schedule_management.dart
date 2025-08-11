@@ -269,10 +269,40 @@ class _AdminScheduleManagementState extends State<AdminScheduleManagement> {
             final doc = activeDocs[index];
             final data = doc.data() as Map<String, dynamic>;
             final shiftTypes = ScheduleService.getShiftTypes();
-            final shiftInfo = shiftTypes.firstWhere(
-              (type) => type['id'] == data['shiftType'],
-              orElse: () => shiftTypes.first,
-            );
+            
+            // Eski nöbet türleri için uyumluluk
+            final shiftTypeId = data['shiftType'] as String;
+            Map<String, dynamic> shiftInfo;
+            
+            try {
+              shiftInfo = shiftTypes.firstWhere(
+                (type) => type['id'] == shiftTypeId,
+              );
+            } catch (e) {
+              // Eski nöbet türleri için varsayılan değerler
+              switch (shiftTypeId) {
+                case 'morning':
+                  shiftInfo = {
+                    'id': 'morning',
+                    'name': 'Sabah Nöbeti (Eski)',
+                    'startTime': '08:00',
+                    'endTime': '16:00',
+                    'color': 0xFF2196F3,
+                  };
+                  break;
+                case 'evening':
+                  shiftInfo = {
+                    'id': 'evening', 
+                    'name': 'Akşam Nöbeti (Eski)',
+                    'startTime': '16:00',
+                    'endTime': '00:00',
+                    'color': 0xFFFF9800,
+                  };
+                  break;
+                default:
+                  shiftInfo = shiftTypes.first; // Varsayılan olarak ilk türü kullan
+              }
+            }
 
             final startDate = (data['startDate'] as Timestamp).toDate();
             final endDate = (data['endDate'] as Timestamp).toDate();
@@ -305,6 +335,7 @@ class _AdminScheduleManagementState extends State<AdminScheduleManagement> {
                         child: Text(
                           data['doctorName'],
                           style: const TextStyle(fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (isCurrentlyActive)
@@ -347,6 +378,7 @@ class _AdminScheduleManagementState extends State<AdminScheduleManagement> {
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -360,9 +392,12 @@ class _AdminScheduleManagementState extends State<AdminScheduleManagement> {
                             color: Colors.grey,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            '${shiftInfo['name']} (${shiftInfo['startTime']} - ${shiftInfo['endTime']})',
-                            style: const TextStyle(fontSize: 12),
+                          Expanded(
+                            child: Text(
+                              '${shiftInfo['name']} (${shiftInfo['startTime']} - ${shiftInfo['endTime']})',
+                              style: const TextStyle(fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
@@ -375,9 +410,12 @@ class _AdminScheduleManagementState extends State<AdminScheduleManagement> {
                             color: Colors.grey,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            '${_formatDate(startDate)} - ${_formatDate(endDate)}',
-                            style: const TextStyle(fontSize: 12),
+                          Expanded(
+                            child: Text(
+                              '${_formatDate(startDate)} - ${_formatDate(endDate)}',
+                              style: const TextStyle(fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
@@ -399,6 +437,8 @@ class _AdminScheduleManagementState extends State<AdminScheduleManagement> {
                                   fontSize: 11,
                                   fontStyle: FontStyle.italic,
                                 ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 2,
                               ),
                             ),
                           ],

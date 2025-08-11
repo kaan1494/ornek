@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
-import '../services/hospital_service.dart';
 import 'admin_schedule_management.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -37,7 +36,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ],
       ),
       body: DefaultTabController(
-        length: 5,
+        length: 4,
         child: Column(
           children: [
             Container(
@@ -50,7 +49,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 tabs: [
                   Tab(icon: Icon(Icons.people), text: 'Kullanıcılar'),
                   Tab(icon: Icon(Icons.medical_services), text: 'Doktorlar'),
-                  Tab(icon: Icon(Icons.local_hospital), text: 'Hastaneler'),
                   Tab(icon: Icon(Icons.assignment), text: 'Triyaj Başvuruları'),
                   Tab(icon: Icon(Icons.schedule), text: 'Nöbet Programı'),
                 ],
@@ -61,7 +59,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 children: [
                   _buildUsersTab(),
                   _buildDoctorsTab(),
-                  _buildHospitalsTab(),
                   _buildTriageApplicationsTab(),
                   _buildScheduleTab(),
                 ],
@@ -263,159 +260,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildHospitalsTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore.collection('hospitals').snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return Center(child: Text('Hata: ${snapshot.error}'));
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.local_hospital, size: 80, color: Colors.grey),
-                const SizedBox(height: 16),
-                const Text('Henüz hastane bulunmuyor'),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () => _addSampleHospitals(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Örnek Hastaneler Ekle'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade600,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Hastaneler',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _importEmergencyHospitals,
-                    icon: const Icon(Icons.download),
-                    label: const Text('Acil Hastaneler Yükle'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange.shade600,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: _addNewHospital,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Yeni Hastane'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade600,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: snapshot.data!.docs.length,
-                itemBuilder: (context, index) {
-                  final doc = snapshot.data!.docs[index];
-                  final hospitalData = doc.data() as Map<String, dynamic>;
-
-                  return Card(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: hospitalData['isActive']
-                            ? Colors.green
-                            : Colors.red,
-                        child: const Icon(
-                          Icons.local_hospital,
-                          color: Colors.white,
-                        ),
-                      ),
-                      title: Text(hospitalData['name']),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${hospitalData['district']}, ${hospitalData['city']}',
-                          ),
-                          Text(
-                            'Tel: ${hospitalData['phone'] ?? 'Belirtilmemiş'}',
-                          ),
-                          if (hospitalData['emergencyCapacity'] != null)
-                            Text(
-                              'Kapasite: ${hospitalData['currentPatients'] ?? 0}/${hospitalData['emergencyCapacity']}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Switch(
-                            value: hospitalData['isActive'] ?? true,
-                            onChanged: (bool value) {
-                              _toggleHospitalStatus(doc.id, value);
-                            },
-                          ),
-                          PopupMenuButton<String>(
-                            onSelected: (String value) {
-                              if (value == 'edit') {
-                                _editHospital(doc.id, hospitalData);
-                              } else if (value == 'delete') {
-                                _deleteHospital(doc.id, hospitalData['name']);
-                              }
-                            },
-                            itemBuilder: (BuildContext context) => [
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Text('Düzenle'),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Sil'),
-                              ),
-                            ],
-                            child: const Icon(Icons.more_vert),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildTriageApplicationsTab() {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
@@ -531,6 +375,70 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  Widget _buildScheduleTab() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.schedule, size: 80, color: Colors.green),
+          const SizedBox(height: 16),
+          const Text(
+            'Nöbet Yönetimi',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.green,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Doktor nöbet atama ve yönetimi için\ngelişmiş arayüzü kullanın',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminScheduleManagement(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.assignment_ind),
+            label: const Text('Nöbet Yönetimine Git'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade600,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () =>
+                    Navigator.pushNamed(context, '/doctor-schedule'),
+                icon: const Icon(Icons.schedule),
+                label: const Text('Hızlı Nöbet Planla'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   String _getTriageResultText(String? result) {
     switch (result) {
       case 'RED':
@@ -629,7 +537,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  void _completeApplication(String applicationId) async {
+  Future<void> _completeApplication(String applicationId) async {
     try {
       await _firestore
           .collection('triage_applications')
@@ -659,70 +567,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         );
       }
     }
-  }
-
-  Widget _buildScheduleTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.schedule, size: 80, color: Colors.green),
-          const SizedBox(height: 16),
-          const Text(
-            'Nöbet Yönetimi',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.green,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Doktor nöbet atama ve yönetimi için\ngelişmiş arayüzü kullanın',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, color: Colors.grey),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminScheduleManagement(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.assignment_ind),
-            label: const Text('Nöbet Yönetimine Git'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade600,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              textStyle: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton.icon(
-                onPressed: () =>
-                    Navigator.pushNamed(context, '/doctor-schedule'),
-                icon: const Icon(Icons.schedule),
-                label: const Text('Hızlı Nöbet Planla'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 
   Color _getRoleColor(String? role) {
@@ -851,581 +695,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
   }
 
-  void _addNewHospital() {
-    final nameController = TextEditingController();
-    final addressController = TextEditingController();
-    final phoneController = TextEditingController();
-    final emergencyCapacityController = TextEditingController();
-    final currentPatientsController = TextEditingController(text: '0');
-
-    String selectedCity = 'İstanbul';
-    String selectedDistrict = 'Kadıköy';
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Yeni Hastane Ekle'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Hastane Adı',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            decoration: const InputDecoration(
-                              labelText: 'İl',
-                              border: OutlineInputBorder(),
-                            ),
-                            value: selectedCity,
-                            items:
-                                [
-                                  'İstanbul',
-                                  'Ankara',
-                                  'İzmir',
-                                  'Bursa',
-                                  'Antalya',
-                                ].map((String city) {
-                                  return DropdownMenuItem<String>(
-                                    value: city,
-                                    child: Text(city),
-                                  );
-                                }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                selectedCity = newValue!;
-                                // İl değişince uygun ilçeyi seç
-                                switch (selectedCity) {
-                                  case 'İstanbul':
-                                    selectedDistrict = 'Kadıköy';
-                                    break;
-                                  case 'Ankara':
-                                    selectedDistrict = 'Çankaya';
-                                    break;
-                                  case 'İzmir':
-                                    selectedDistrict = 'Konak';
-                                    break;
-                                  case 'Bursa':
-                                    selectedDistrict = 'Nilüfer';
-                                    break;
-                                  case 'Antalya':
-                                    selectedDistrict = 'Muratpaşa';
-                                    break;
-                                }
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            decoration: const InputDecoration(
-                              labelText: 'İlçe',
-                              border: OutlineInputBorder(),
-                            ),
-                            value: selectedDistrict,
-                            items: _getDistrictsForCity(selectedCity).map((
-                              String district,
-                            ) {
-                              return DropdownMenuItem<String>(
-                                value: district,
-                                child: Text(district),
-                              );
-                            }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                selectedDistrict = newValue!;
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: addressController,
-                      decoration: const InputDecoration(
-                        labelText: 'Adres',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: phoneController,
-                      decoration: const InputDecoration(
-                        labelText: 'Telefon',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: emergencyCapacityController,
-                            decoration: const InputDecoration(
-                              labelText: 'Acil Kapasite',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextField(
-                            controller: currentPatientsController,
-                            decoration: const InputDecoration(
-                              labelText: 'Mevcut Hasta',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('İptal'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (nameController.text.isEmpty ||
-                        addressController.text.isEmpty ||
-                        phoneController.text.isEmpty ||
-                        emergencyCapacityController.text.isEmpty) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Lütfen tüm alanları doldurun'),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                      }
-                      return;
-                    }
-
-                    // Context'i await'tan önce sakla
-                    final navigator = Navigator.of(context);
-                    if (context.mounted) {
-                      navigator.pop();
-                    }
-
-                    await _createNewHospital({
-                      'name': nameController.text,
-                      'city': selectedCity,
-                      'district': selectedDistrict,
-                      'address': addressController.text,
-                      'phone': phoneController.text,
-                      'emergencyCapacity':
-                          int.tryParse(emergencyCapacityController.text) ?? 0,
-                      'currentPatients':
-                          int.tryParse(currentPatientsController.text) ?? 0,
-                      'isActive': true,
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade600,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Ekle'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> _createNewHospital(Map<String, dynamic> hospitalData) async {
-    try {
-      final hospitalId = await HospitalService.addHospital(hospitalData);
-      if (hospitalId != null && mounted) {
-        final messengerContext = ScaffoldMessenger.of(context);
-        messengerContext.showSnackBar(
-          const SnackBar(
-            content: Text('Yeni hastane başarıyla eklendi'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        final messengerContext = ScaffoldMessenger.of(context);
-        messengerContext.showSnackBar(
-          SnackBar(
-            content: Text('Hastane ekleme hatası: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _addSampleHospitals() async {
-    try {
-      await HospitalService.initializeHospitals();
-      if (mounted) {
-        final messengerContext = ScaffoldMessenger.of(context);
-        messengerContext.showSnackBar(
-          const SnackBar(
-            content: Text('Örnek hastaneler başarıyla eklendi'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        final messengerContext = ScaffoldMessenger.of(context);
-        messengerContext.showSnackBar(
-          SnackBar(
-            content: Text('Hastane ekleme hatası: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _toggleHospitalStatus(String hospitalId, bool isActive) async {
-    try {
-      await HospitalService.updateHospitalStatus(hospitalId, isActive);
-      if (mounted) {
-        final messengerContext = ScaffoldMessenger.of(context);
-        messengerContext.showSnackBar(
-          SnackBar(
-            content: Text(
-              isActive
-                  ? 'Hastane aktifleştirildi'
-                  : 'Hastane devre dışı bırakıldı',
-            ),
-            backgroundColor: isActive ? Colors.green : Colors.orange,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        final messengerContext = ScaffoldMessenger.of(context);
-        messengerContext.showSnackBar(
-          SnackBar(
-            content: Text('Durum değiştirme hatası: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _editHospital(String hospitalId, Map<String, dynamic> hospitalData) {
-    final nameController = TextEditingController(text: hospitalData['name']);
-    final addressController = TextEditingController(
-      text: hospitalData['address'],
-    );
-    final phoneController = TextEditingController(text: hospitalData['phone']);
-    final emergencyCapacityController = TextEditingController(
-      text: hospitalData['emergencyCapacity']?.toString() ?? '',
-    );
-    final currentPatientsController = TextEditingController(
-      text: hospitalData['currentPatients']?.toString() ?? '',
-    );
-
-    String selectedCity = hospitalData['city'] ?? 'İstanbul';
-    String selectedDistrict = hospitalData['district'] ?? 'Kadıköy';
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Hastane Düzenle'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Hastane Adı',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            decoration: const InputDecoration(
-                              labelText: 'İl',
-                              border: OutlineInputBorder(),
-                            ),
-                            value: selectedCity,
-                            items:
-                                [
-                                  'İstanbul',
-                                  'Ankara',
-                                  'İzmir',
-                                  'Bursa',
-                                  'Antalya',
-                                ].map((String city) {
-                                  return DropdownMenuItem<String>(
-                                    value: city,
-                                    child: Text(city),
-                                  );
-                                }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                selectedCity = newValue!;
-                                // İl değişince uygun ilçeyi seç
-                                switch (selectedCity) {
-                                  case 'İstanbul':
-                                    selectedDistrict = 'Kadıköy';
-                                    break;
-                                  case 'Ankara':
-                                    selectedDistrict = 'Çankaya';
-                                    break;
-                                  case 'İzmir':
-                                    selectedDistrict = 'Konak';
-                                    break;
-                                  case 'Bursa':
-                                    selectedDistrict = 'Nilüfer';
-                                    break;
-                                  case 'Antalya':
-                                    selectedDistrict = 'Muratpaşa';
-                                    break;
-                                }
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            decoration: const InputDecoration(
-                              labelText: 'İlçe',
-                              border: OutlineInputBorder(),
-                            ),
-                            value: selectedDistrict,
-                            items: _getDistrictsForCity(selectedCity).map((
-                              String district,
-                            ) {
-                              return DropdownMenuItem<String>(
-                                value: district,
-                                child: Text(district),
-                              );
-                            }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                selectedDistrict = newValue!;
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: addressController,
-                      decoration: const InputDecoration(
-                        labelText: 'Adres',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: phoneController,
-                      decoration: const InputDecoration(
-                        labelText: 'Telefon',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: emergencyCapacityController,
-                            decoration: const InputDecoration(
-                              labelText: 'Acil Kapasite',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextField(
-                            controller: currentPatientsController,
-                            decoration: const InputDecoration(
-                              labelText: 'Mevcut Hasta',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('İptal'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    // Context'i await'tan önce sakla
-                    final navigator = Navigator.of(context);
-                    if (context.mounted) {
-                      navigator.pop();
-                    }
-
-                    await _updateHospital(hospitalId, {
-                      'name': nameController.text,
-                      'city': selectedCity,
-                      'district': selectedDistrict,
-                      'address': addressController.text,
-                      'phone': phoneController.text,
-                      'emergencyCapacity':
-                          int.tryParse(emergencyCapacityController.text) ?? 0,
-                      'currentPatients':
-                          int.tryParse(currentPatientsController.text) ?? 0,
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade600,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Güncelle'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  List<String> _getDistrictsForCity(String city) {
-    switch (city) {
-      case 'İstanbul':
-        return ['Kadıköy', 'Üsküdar', 'Beşiktaş', 'Şişli', 'Fatih', 'Beyoğlu'];
-      case 'Ankara':
-        return ['Çankaya', 'Keçiören', 'Yenimahalle', 'Mamak', 'Sincan'];
-      case 'İzmir':
-        return ['Konak', 'Bornova', 'Karşıyaka', 'Buca', 'Bayraklı'];
-      case 'Bursa':
-        return ['Nilüfer', 'Osmangazi', 'Yıldırım', 'Mudanya'];
-      case 'Antalya':
-        return ['Muratpaşa', 'Kepez', 'Konyaaltı', 'Aksu'];
-      default:
-        return [];
-    }
-  }
-
-  Future<void> _updateHospital(
-    String hospitalId,
-    Map<String, dynamic> updates,
-  ) async {
-    try {
-      await _firestore.collection('hospitals').doc(hospitalId).update(updates);
-      if (mounted) {
-        final messengerContext = ScaffoldMessenger.of(context);
-        messengerContext.showSnackBar(
-          const SnackBar(
-            content: Text('Hastane başarıyla güncellendi'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        final messengerContext = ScaffoldMessenger.of(context);
-        messengerContext.showSnackBar(
-          SnackBar(
-            content: Text('Güncelleme hatası: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _deleteHospital(String hospitalId, String hospitalName) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Hastane Sil'),
-          content: Text(
-            '$hospitalName hastanesini silmek istediğinizden emin misiniz?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('İptal'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                // Context'i await'tan önce sakla
-                final navigator = Navigator.of(context);
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
-                if (context.mounted) {
-                  navigator.pop();
-                }
-
-                try {
-                  await _firestore
-                      .collection('hospitals')
-                      .doc(hospitalId)
-                      .delete();
-                  if (mounted) {
-                    scaffoldMessenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('Hastane başarıyla silindi'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    scaffoldMessenger.showSnackBar(
-                      SnackBar(
-                        content: Text('Silme hatası: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Sil', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Future<void> _addSampleDoctor() async {
     try {
       final sampleDoctors = [
@@ -1487,67 +756,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           SnackBar(
             content: Text('Doktor ekleme hatası: $e'),
             backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  // Acil başvuru hastanelerini Firestore'a yükle
-  Future<void> _importEmergencyHospitals() async {
-    try {
-      final messengerContext = ScaffoldMessenger.of(context);
-
-      // Yükleme durumunu göster
-      messengerContext.showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              CircularProgressIndicator(color: Colors.white),
-              SizedBox(width: 16),
-              Text('Acil başvuru hastaneleri yükleniyor...'),
-            ],
-          ),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 10),
-        ),
-      );
-
-      // HospitalService'ten static verileri yükle
-      await HospitalService.importStaticHospitalsToFirestore();
-
-      if (mounted) {
-        final messengerContext = ScaffoldMessenger.of(context);
-        messengerContext.hideCurrentSnackBar();
-        messengerContext.showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 16),
-                Text('Acil başvuru hastaneleri başarıyla yüklendi!'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        final messengerContext = ScaffoldMessenger.of(context);
-        messengerContext.hideCurrentSnackBar();
-        messengerContext.showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.error, color: Colors.white),
-                SizedBox(width: 16),
-                Text('Hata: $e'),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 5),
           ),
         );
       }
