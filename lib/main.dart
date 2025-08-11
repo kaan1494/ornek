@@ -14,6 +14,7 @@ import 'screens/emergency_triage_screen.dart';
 import 'screens/doctor_assignment_screen.dart';
 import 'screens/hospital_duties_screen.dart';
 import 'screens/my_plans_screen.dart';
+import 'screens/doctor_my_plans_screen.dart';
 import 'services/auth_service.dart';
 import 'utils/admin_setup.dart';
 
@@ -79,6 +80,7 @@ class HastaneAcilApp extends StatelessWidget {
         '/doctor-assignment': (context) => const DoctorAssignmentScreen(),
         '/hospital-duties': (context) => const HospitalDutiesScreen(),
         '/my-plans': (context) => const MyPlansScreen(),
+        '/doctor-my-plans': (context) => const DoctorMyPlansScreen(),
       },
     );
   }

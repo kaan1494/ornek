@@ -415,7 +415,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: () {
-                  Navigator.pushNamed(context, '/my-plans');
+                  // Kullanıcı rolüne göre farklı ekranlara yönlendir
+                  if (userData?['role'] == 'doctor') {
+                    Navigator.pushNamed(context, '/doctor-my-plans');
+                  } else {
+                    Navigator.pushNamed(context, '/my-plans');
+                  }
                 },
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
@@ -424,30 +429,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.purple.shade100,
+                          color: userData?['role'] == 'doctor'
+                              ? Colors.blue.shade100
+                              : Colors.purple.shade100,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
-                          Icons.event_note,
-                          color: Colors.purple.shade600,
+                          userData?['role'] == 'doctor'
+                              ? Icons.people
+                              : Icons.event_note,
+                          color: userData?['role'] == 'doctor'
+                              ? Colors.blue.shade600
+                              : Colors.purple.shade600,
                           size: 32,
                         ),
                       ),
                       const SizedBox(width: 16),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Planlarım',
-                              style: TextStyle(
+                              userData?['role'] == 'doctor'
+                                  ? 'Hastalarım'
+                                  : 'Planlarım',
+                              style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             Text(
-                              'Yeşil alan hastalarının doktor görüşmeleri',
-                              style: TextStyle(
+                              userData?['role'] == 'doctor'
+                                  ? 'Atanmış hastalar ve konsültasyonlar'
+                                  : 'Yeşil alan hastalarının doktor görüşmeleri',
+                              style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey,
                               ),
